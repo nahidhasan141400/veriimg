@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementation plan for transitioning veriimg to Google-only Super Admin and allowlisted admin authentication, adding the Admin Manager and Overview pages in a standard sidebar dashboard layout, and removing all admin links from the public header in favor of a subtle footer link.",
+  "updatedAt":  "2026-11-09T15:01:43.033315459Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

@@ -1,0 +1,198 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default-Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidWatermarkId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 10 && id.matches('^[0-9]{1,10}$');
+    }
+
+    function isValidAdminEmailId(emailId) {
+      return emailId is string &&
+        emailId.size() >= 5 &&
+        emailId.size() <= 128 &&
+        emailId.matches('^[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isSuperAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'nahid.main.ai@gmail.com';
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'nahid.main.ai@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.token.email))
+      );
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidWatermarkAsset(data) {
+      return data.keys().hasAll([
+        'id',
+        'hex',
+        'binary',
+        'targetUrl',
+        'title',
+        'thumbnailDataUrl',
+        'delta',
+        'createdBy',
+        'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'hex',
+        'binary',
+        'targetUrl',
+        'title',
+        'thumbnailDataUrl',
+        'delta',
+        'createdBy',
+        'createdAt'
+      ]) &&
+      data.id is int &&
+      data.id >= 0 &&
+      data.id <= 4294967295 &&
+      data.hex is string &&
+      data.hex.size() == 10 &&
+      data.hex.matches('^0x[0-9A-F]{8}$') &&
+      data.binary is string &&
+      data.binary.size() == 32 &&
+      data.binary.matches('^[01]{32}$') &&
+      data.targetUrl is string &&
+      data.targetUrl.size() >= 8 &&
+      data.targetUrl.size() <= 512 &&
+      data.targetUrl.matches('^https://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(/.*)?$') &&
+      data.title is string &&
+      data.title.size() >= 1 &&
+      data.title.size() <= 120 &&
+      data.thumbnailDataUrl is string &&
+      data.thumbnailDataUrl.size() >= 10 &&
+      data.thumbnailDataUrl.size() <= 150000 &&
+      data.delta is int &&
+      data.delta >= 1 &&
+      data.delta <= 64 &&
+      data.createdBy is string &&
+      data.createdBy.size() >= 1 &&
+      data.createdBy.size() <= 128 &&
+      data.createdBy == request.auth.uid &&
+      data.createdAt is timestamp;
+    }
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['email', 'displayName', 'role', 'addedBy', 'createdAt']) &&
+        data.keys().hasOnly(['email', 'displayName', 'role', 'addedBy', 'createdAt']) &&
+        data.email is string &&
+        data.email.size() >= 5 &&
+        data.email.size() <= 128 &&
+        data.email.matches('^[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}$') &&
+        data.displayName is string &&
+        data.displayName.size() >= 1 &&
+        data.displayName.size() <= 80 &&
+        data.role is string &&
+        data.role.size() == 5 &&
+        data.role == 'admin' &&
+        data.addedBy is string &&
+        data.addedBy.size() == 23 &&
+        data.addedBy == 'nahid.main.ai@gmail.com' &&
+        data.createdAt is timestamp;
+    }
+
+    // 4. Connection Validation Probe
+    match /test/{docId} {
+      allow get: if isValidId(docId);
+      allow list, create, update, delete: if false;
+    }
+
+    // 5. Watermark Asset Registry (/watermarks/{watermarkId})
+    match /watermarks/{watermarkId} {
+      // Public consumer lookup by extracted 32-bit integer ID
+      allow get: if isValidWatermarkId(watermarkId);
+
+      // Enforced bounded query rule for inventory listing
+      allow list: if resource.data.id >= 0 && resource.data.id <= 4294967295;
+
+      // Administrative creation with strict schema, ID sync, and server timestamp
+      allow create: if isVerifiedUser() &&
+        isValidWatermarkId(watermarkId) &&
+        isValidWatermarkAsset(incoming()) &&
+        string(incoming().id) == watermarkId &&
+        incoming().createdAt == request.time &&
+        isAdmin();
+
+      // Action-based administrative update with immutable identity/timestamp guards
+      allow update: if isVerifiedUser() &&
+        isValidWatermarkId(watermarkId) &&
+        isValidWatermarkAsset(incoming()) &&
+        string(incoming().id) == watermarkId &&
+        incoming().id == existing().id &&
+        incoming().hex == existing().hex &&
+        incoming().binary == existing().binary &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['targetUrl', 'title', 'thumbnailDataUrl', 'delta']);
+
+      // Administrative deletion
+      allow delete: if isVerifiedUser() &&
+        isValidWatermarkId(watermarkId) &&
+        isAdmin();
+    }
+
+    // 6. Administrator Allowlist Collection (/admins/{adminEmail})
+    match /admins/{adminEmail} {
+      allow get: if isVerifiedUser() &&
+        isValidAdminEmailId(adminEmail) &&
+        (request.auth.token.email == adminEmail || isAdmin());
+
+      allow list: if isVerifiedUser() &&
+        resource.data.addedBy == 'nahid.main.ai@gmail.com' &&
+        (isSuperAdmin() || resource.data.email == request.auth.token.email);
+
+      allow create: if isSuperAdmin() &&
+        isValidAdminEmailId(adminEmail) &&
+        adminEmail != 'nahid.main.ai@gmail.com' &&
+        isValidAdminRecord(incoming()) &&
+        incoming().email == adminEmail &&
+        incoming().addedBy == request.auth.token.email &&
+        incoming().createdAt == request.time;
+
+      allow update: if isSuperAdmin() &&
+        isValidAdminEmailId(adminEmail) &&
+        isValidAdminRecord(incoming()) &&
+        incoming().email == existing().email &&
+        incoming().role == existing().role &&
+        incoming().addedBy == existing().addedBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName']);
+
+      allow delete: if isSuperAdmin() &&
+        isValidAdminEmailId(adminEmail) &&
+        adminEmail != 'nahid.main.ai@gmail.com';
+    }
+  }
+}

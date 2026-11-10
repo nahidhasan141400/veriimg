@@ -1,0 +1,127 @@
+{
+  "entities": {
+    "WatermarkAsset": {
+      "title": "WatermarkAsset",
+      "description": "Mapping of a 32-bit spatial luminance watermark integer and hexadecimal identifier to an authenticated https destination URL.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "32-bit unsigned integer identifier N in [0, 4294967295]"
+        },
+        "hex": {
+          "type": "string",
+          "description": "8-character uppercase hexadecimal string prefixed with 0x",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^0x[0-9A-F]{8}$"
+        },
+        "binary": {
+          "type": "string",
+          "description": "32-bit binary sequence string from MSB (b0) to LSB (b31)",
+          "minLength": 32,
+          "maxLength": 32,
+          "pattern": "^[01]{32}$"
+        },
+        "targetUrl": {
+          "type": "string",
+          "description": "Validated https:// destination URL for verified image redirection",
+          "minLength": 8,
+          "maxLength": 512,
+          "pattern": "^https://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(/.*)?$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable asset label for inventory identification",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "thumbnailDataUrl": {
+          "type": "string",
+          "description": "Compact data URL visual preview for inventory display",
+          "minLength": 10,
+          "maxLength": 150000
+        },
+        "delta": {
+          "type": "integer",
+          "description": "Luminance modulation safety margin delta in [1, 64]"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Firebase Auth UID of the administrator who registered the watermark",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the watermark asset was registered"
+        }
+      },
+      "required": [
+        "id",
+        "hex",
+        "binary",
+        "targetUrl",
+        "title",
+        "thumbnailDataUrl",
+        "delta",
+        "createdBy",
+        "createdAt"
+      ]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Delegated administrator Google email authorization record managed exclusively by the Super Admin (nahid.main.ai@gmail.com).",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Normalized lowercase Google email address of the authorized administrator",
+          "minLength": 5,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable administrator name or role note",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"],
+          "minLength": 5,
+          "maxLength": 5
+        },
+        "addedBy": {
+          "type": "string",
+          "description": "Super Admin email who authorized this administrator",
+          "minLength": 23,
+          "maxLength": 23,
+          "enum": ["nahid.main.ai@gmail.com"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of admin authorization"
+        }
+      },
+      "required": ["email", "displayName", "role", "addedBy", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/watermarks/{watermarkId}": {
+      "schema": {
+        "$ref": "#/entities/WatermarkAsset"
+      },
+      "description": "Publicly readable registry of verified 32-bit watermark identifiers mapped to official destination URLs; write access restricted to verified Super Admin and allowlisted administrators."
+    },
+    "/admins/{adminEmail}": {
+      "schema": {
+        "$ref": "#/entities/AdminRecord"
+      },
+      "description": "Trusted allowlist of delegated administrator Google email addresses managed exclusively by Super Admin nahid.main.ai@gmail.com."
+    }
+  }
+}
