@@ -169,9 +169,15 @@ service cloud.firestore {
         isValidAdminEmailId(adminEmail) &&
         (request.auth.token.email == adminEmail || isAdmin());
 
+      // Query must include where('addedBy', '==', 'nahid.main.ai@gmail.com').
+      // The email comparison cannot be part of this rule: it is not in that query,
+      // and Firestore rejects the whole list when a rule is not a query filter.
+      allow list: if isSuperAdmin() &&
+        resource.data.addedBy == 'nahid.main.ai@gmail.com';
+
       allow list: if isVerifiedUser() &&
         resource.data.addedBy == 'nahid.main.ai@gmail.com' &&
-        (isSuperAdmin() || resource.data.email == request.auth.token.email);
+        exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
 
       allow create: if isSuperAdmin() &&
         isValidAdminEmailId(adminEmail) &&
