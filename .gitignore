@@ -10,7 +10,17 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.next/
+out/
+
+# Secrets. .env.example is the only env file that may be committed.
+.env
+.env.*
+!.env.example
 *.local
+firebase-applet-config.json
+*serviceAccount*.json
+*credentials*.json
 
 # Editor directories and files
 .vscode/*

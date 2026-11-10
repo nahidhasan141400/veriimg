@@ -1,9 +1,0 @@
-{
-  "apiKey": "placeholder-api-key",
-  "authDomain": "localhost",
-  "projectId": "veriimg-local",
-  "storageBucket": "veriimg-local.appspot.com",
-  "messagingSenderId": "000000000000",
-  "appId": "1:000000000000:web:placeholder",
-  "firestoreDatabaseId": "(default)"
-}
